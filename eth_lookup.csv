@@ -1,0 +1,23 @@
+aow_number,aow_label,eth6a
+11,Indian,Asian
+12,Pakistani,Asian
+13,Bangladeshi,Asian
+14,Chinese,Asian
+15,Any other Asian background,Asian
+21,Caribbean,Black
+22,African,Black
+23,"Any other Black, Black British, or Caribbean background",Black
+31,White and Black Caribbean,Mixed
+32,White and Black African,Mixed
+33,White and Asian,Mixed
+34,Any other Mixed or multiple ethnic background,Mixed
+41,"English, Welsh, Scottish, Northern Irish or British",White
+42,Irish,White
+43,Gypsy or Irish Traveller,White
+44,Roma,White
+45,Any other White background,White
+51,Arab,Other
+52,Any other ethnic group,Other
+97,Data provided but ethnicity not stated,Unknown
+98,Data provided but unmapped,Unknown
+99,Data not provided,Unknown
