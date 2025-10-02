@@ -544,7 +544,7 @@ het <- lapply(seq_along(measures), function (x) {
   f <- paste0(measures[x], '~eth7_2 + age + sex + season')
   m <- lm(f, data = d)
   plot(m$fitted.values, m$residuals, xlab = NA, ylab = NA)
-  pm <- lm(m$residuals ~ poly(m$fitted.values, 3))
+  pm <- lm(m$residuals ~ poly(m$fitted.values, 2))
   pm <- cbind(m$fitted.values, predict(pm))
   pm <- pm[order(pm[,1]),]
   lines(pm[,1], pm[,2], col = 'red')
@@ -721,6 +721,7 @@ fsmtab$smd <- gsub(',', ', ', fsmtab$smd)
 tab <- cbind(ethtab, fsm = fsmtab$smd)
 fwrite(tab, 'smd_table.csv')
 
+# =====================================================
 # compare complete case and multiple imputation results
 # -----------------------------------------------------
 
@@ -735,28 +736,65 @@ cc <- function (x, var = 'eth7_2') {
 eth_cc <- sapply(measures, cc, simplify = F)
 fsm_cc <- sapply(measures, cc, var = 'fsm', simplify = F)
 
-x$y <- rep(12:1, each = 5) + rep(seq(0.2, -0.2, length.out = 5), 12)
-x2 <- do.call(rbind, eth_cc)
-x2 <- as.data.frame.matrix(x2)
-colnames(x2) <- c('q', 'lower', 'upper')
+x$y <- rep(12:1, each = 6) + rep(seq(0.3, -0.3, length.out = 6), 12)
+x_ethcc <- do.call(rbind, eth_cc)
+x_ethcc <- as.data.frame.matrix(x_ethcc)
+colnames(x_ethcc) <- c('q', 'lower', 'upper')
+
+x_fsmcc <- do.call(rbind, fsm_cc)
+x_fsmcc <- as.data.frame.matrix(x_fsmcc)
+colnames(x_fsmcc) <- c('q', 'lower', 'upper')
+
 off <- 0.05
+gap <- 0.15
 
-png('mi_vs_cc.png', height = 15, width = 9, units = 'in', res = 300)
+png('mi_vs_cc.png', height = 12, width = 12, units = 'in', res = 300)
 
-par(xpd = NA, mar = c(3, 10, 0, 0))
-plot(1, type = 'n', xlim = c(-1, 0.5), ylim = c(0, 13), axes = F, xlab = NA, ylab = NA)
-axis(1, pos = 0.5)
+par(xpd = NA, mar = c(7, 12, 0, 0))
+
+plot(1, type = 'n', xlim = c(-1, 2.2), ylim = c(0, 13), axes = F, xlab = NA, ylab = NA)
+text(-1.05, 12:1, titles, adj = 1)
+
+# ethnicity
 
 rect(-1, 0.5, 0.5, 12.5)
 segments(0, 0.5, y1 = 12.5)
 segments(-1, 0:12 + 0.5, x1 = 0.5, lty = 3)
-
 points(x$q, x$y, pch = 19, col = cols)
 arrows(x$lower, x$y, x1 = x$upper, angle = 90, code = 3, length = 0.05, col = cols)
+points(x_ethcc$q, x$y - off, pch = 15, col = cols)
+arrows(x_ethcc$lower, x$y - off, x1 = x_ethcc$upper, angle = 90, code = 3, length = 0.05, col = cols, lty = 3)
 
-points(x2$q, x$y - off, pch = 15, col = cols)
-arrows(x2$lower, x$y - off, x1 = x2$upper, angle = 90, code = 3, length = 0.05, col = cols, lty = 3)
+axis(1, at = seq(-1, 0.5, 0.5), pos = 0.5)
+arrows(-0.1, -0.5, x1 = -0.5, length = 0.13)
+arrows(0.1, -0.5, x1 = 0.5, length = 0.13)
+text(-0.1, -1.1, 'Higher score in\nWhite British\nadolescents', adj = 1)
+text(0.1, -1.1, 'Higher score in\nminority ethnic\nadolescents', adj = 0)
 
-text(-1.05, 12:1, titles, adj = 1)
+# fsm
+
+rect(-0.5 + 1+gap, 0.5, 0.5 + 1+gap, 12.5)
+segments(-0.5 +1+gap, 0:12 + 0.5, x1 = 0.5 +1+gap, lty = 3, lwd = 0.5)
+segments(0 + 1+gap, 0.5, y1 = 12.5)
+points(x2$q + 1+gap, ymids, pch = 19 , cex = 1.15)
+arrows(x2$lower +1+gap, ymids, x1 = x2$upper +1+gap, length = 0.04, code = 3, angle = 90)
+points(x_fsmcc$q + 1+gap, ymids - off, pch = 19 , cex = 1.15)
+arrows(x_fsmcc$lower +1+gap, ymids - off, x1 = x_fsmcc$upper +1+gap, length = 0.04, code = 3, angle = 90, lty = 3)
+
+axis(1, at = seq(-0.5 +1+gap, 0.5 +1+gap, 0.5), labels = c(-0.5, 0, 0.5), pos = 0.5)
+arrows(-0.1 +1+gap, -0.5, x1 = -0.5 +1+gap, length = 0.15)
+arrows(0.1 +1+gap, -0.5, x1 = 0.5 +1+gap, length = 0.15)
+text(-0.1 +1+gap, -1.1, 'Higher score in\nineligible\nadolescents', adj = 1)
+text(0.1 +1+gap, -1.1, 'Higher score in\neligible\nadolescents', adj = 0)
+
+text(0, 13, 'Associations with\nethnicity\n(ref = White British: see colour key)')
+text(0 +1+gap, 13, 'Associations with\nFree School Meal\neligibility')
+text(0.5 +gap/2, -2, 'Standardised mean difference')
+
+ysl <- seq(12, 7.5, length.out = 6)
+points(rep(0.7 +1+gap, 6), ysl, col = cols, pch = 19, cex = c(1.15, 0.7, 0.7, 0.7, 0.7, 0.7))
+arrows(0.6 +1+gap, ysl, x1 = 0.8 +1+gap, col = cols, angle = 90, code = 3, length = 0.05)
+text(0.82 +1+gap, ysl, c('British\nPakistani', 'Other\nAsian', 'Mixed\nethnicities', 'Other White', 'Black', 'Other\nethnicities'), adj = 0)
+text(0.6 +1+gap, 13, 'Key for\nethnicity\nresults', adj = 0)
 
 dev.off()
