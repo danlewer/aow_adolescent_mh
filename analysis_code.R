@@ -15,7 +15,7 @@ setwd("H:/AoW_SP795_MH_inequalities")
 # - ULS-4 (loneliness) - unsure of provenance
 # - PLIKS-8 (unusal experiences/ psychosis) - unsure of provenance
 
-# RECRUITMENT FILE
+# RECRUITMENT FILE (information from schools)
 # - age
 # - sex
 # - ethnicity
@@ -32,6 +32,7 @@ library(RColorBrewer) # for plot colours
 library(sandwich) # for sandwich estimator
 library(lmtest) # for sandwich estimator
 library(Amelia) # for multiple imputation
+library(devEMF) # enhanced metafile device
 
 read_dta2 <- function (...) data.table(read_dta(...)) # read Stata file and convert to data.table
 
@@ -270,17 +271,32 @@ d[, pliks := rowSums(d[, pliks_vars, with = F])]
 
 # no strong association with schizphrenia risk factors and pliks - https://pubmed.ncbi.nlm.nih.gov/18562177/
 
+# ======
+# assets
+# ------
+
+# 4 - mobile phone
+# 5 - computer, tablet, laptop at home
+# 6 - at least one family holiday away per year
+# 7 - a family car, van or truck
+# 8 - own bedroom
+
+assets_vars <- names(d)[grepl('assets', names(d))]
+colMeans(d[, ..assets_vars], na.rm = T)
+
 # ===================================================
 # characteristics from school data / recruitment file
 # ---------------------------------------------------
 
 # population density
 # note AoW has LSOA11CD, including LSOAs E01010677 and E01010835 which are inactive in LSOA22CD
-popdens <- fread('https://raw.githubusercontent.com/danlewer/aow_adolescent_mh/refs/heads/main/geographical_data/lsoa_pop_density_census_2021.csv', select = c('LSOA21CD', 'calc_density'), col.names = c('LSOA11CD', 'popdens'))
+# popdens <- fread('https://raw.githubusercontent.com/danlewer/aow_adolescent_mh/refs/heads/main/geographical_data/lsoa_pop_density_census_2021.csv', select = c('LSOA21CD', 'calc_density'), col.names = c('LSOA11CD', 'popdens'))
+popdens <- fread('lsoa_pop_density_census_2021.csv', select = c('LSOA21CD', 'calc_density'), col.names = c('LSOA11CD', 'popdens'))
 rec <- popdens[rec, on = 'LSOA11CD']
 
 # index of multiple deprivation
-imdrank <- fread("https://raw.githubusercontent.com/danlewer/aow_adolescent_mh/refs/heads/main/imd2019rank3.csv")
+# imdrank <- fread("https://raw.githubusercontent.com/danlewer/aow_adolescent_mh/refs/heads/main/imd2019rank3.csv")
+imdrank <- fread("imd2019rank3.csv")
 rec <- imdrank[rec, on = 'LSOA11CD']
 rec[, imd5 := factor(IMD_2019_decile, 1:10, ceiling(1:10 / 2))]
 
@@ -293,7 +309,8 @@ rec[, SEN := factor(SEN, 0:3, c('none', 'SEN', 'EHCP', 'missing'))]
 rec$fsm <- as.integer(rec$fsm)
 
 # ethnicity
-eth_lookup <- fread("https://raw.githubusercontent.com/danlewer/aow_adolescent_mh/refs/heads/main/eth_lookup.csv", col.names = c('ethnicity_2', 'eth_desc', 'eth5'))
+# eth_lookup <- fread("https://raw.githubusercontent.com/danlewer/aow_adolescent_mh/refs/heads/main/eth_lookup.csv", col.names = c('ethnicity_2', 'eth_desc', 'eth5'))
+eth_lookup <- fread("eth_lookup.csv", col.names = c('ethnicity_2', 'eth_desc', 'eth5'))
 rec <- eth_lookup[rec, on = 'ethnicity_2']
 rec$eth5[is.na(rec$eth5)] <- 'Unknown'
 rec$eth6 <- rec$eth5
@@ -416,7 +433,7 @@ yax <- function(x, tickabove = F, ntick = 5) { # y-axis tick points
 par(mfrow = c(4, 3), mar = c(1, 1, 1, 1))
 lapply(measures, function (x) hist(d[, get(x)], main = x))
 
-p <- function (var = 'rcads25', cols = brewer.pal(11, 'Spectral')[7], cutoff = 70, TITLE = 'Depression and Anxiety\nRCADS-25') {
+p <- function (var = 'rcads25', cols = brewer.pal(11, 'Spectral')[4], cutoff = 70, TITLE = 'Depression and Anxiety\nRCADS-25') {
   x <- d[, .N, .(v = get(var))]
   x <- x[!is.na(v)]
   ymax <- max(x$N) * 1.3
@@ -453,17 +470,24 @@ quantile(d$rcads25_depression, 1 - mean(d$rcads25_depression_tscore > 70, na.rm 
 cutoffs <- c(36, 22, 17, Inf, Inf, 17, 8, 11, 15, Inf)
 cutoffs <- rep(Inf, 12)
 
-png('hists.png', height = 9.3, width = 7, units = 'in', res = 300)
+emf('hists.emf', height = 9.3, width = 7, units = 'in')
 par(mfrow = c(4, 3), mar = c(1, 1, 3, 2), oma = c(4, 4, 0, 0))
 mapply(p, var = measures, TITLE = titles, cutoff = cutoffs)
 title(xlab = 'Score', outer = T, line = 2)
 title(ylab = 'Number of participants', outer = T)
 dev.off()
 
-# eCDFs by ethnicity
+#png('hists6.png', height = 6.5, width = 5, units = 'in', res = 300)
+cairo_pdf('Fig2.pdf', height = 6.5, width = 6.5, family = 'Verdana')
+par(mfrow = c(3, 2), mar = c(1, 1, 1, 2), oma = c(4, 4, 0, 0))
+mapply(p, var = measures[c(1, 4, 5, 6, 11, 12)], TITLE = titles[c(1, 4, 5, 6, 11, 12)], cutoff = cutoffs)
+title(xlab = 'Score', outer = T, line = 2)
+title(ylab = 'Number of participants', outer = T)
+dev.off()
+
+# eCDFs by ethnicity/fsm
 
 p2 <- function (var = 'rcads25', exs = 'eth7_2', levs = c('White British', 'Pakistani'), cols = brewer.pal(5, 'Set1'), TITLE = 'RCADS25', cutoff = 20) {
-  #x <- d[eth7 %in% c('White British', 'Pakistani'), .(eth7 = eth7, var = get(var))]
   x <- d[get(exs) %in% levs, .(exs = get(exs), var = get(var))]
   x <- droplevels(x)
   iqr <- aggregate(var ~ exs, data = x, FUN = quantile, probs = c(0.25, 0.5, 0.75))
@@ -486,14 +510,14 @@ p2 <- function (var = 'rcads25', exs = 'eth7_2', levs = c('White British', 'Paki
   text(xmax * 0.05, 0.90, TITLE, adj = 0)
 }
 
-png('ecdfs_eth.png', height = 9.3, width = 7, units = 'in', res = 300)
+emf('ecdfs_eth.emf', height = 9.3, width = 7, units = 'in')
 par(mfrow = c(4, 3), mar = c(1, 1, 3, 2), oma = c(4, 4, 0, 0), xpd = NA)
 mapply(p2, var = measures, TITLE = titles, cutoff = cutoffs)
 title(xlab = 'Score', outer = T)
 title(ylab = 'Empirical cumulative distribution', outer = T)
 dev.off()
 
-png('ecdfs_fsm.png', height = 9.3, width = 7, units = 'in', res = 300)
+emf('ecdfs_fsm.emf', height = 9.3, width = 7, units = 'in')
 par(mfrow = c(4, 3), mar = c(1, 1, 3, 2), oma = c(4, 4, 0, 0), xpd = NA)
 mapply(p2, var = measures, TITLE = titles, cutoff = cutoffs, exs = 'fsm', levs = list(c(0, 1)))
 title(xlab = 'Score', outer = T)
@@ -650,9 +674,10 @@ x2 <- do.call(rbind, r_fsm)
 gap <- 0.2
 main_measures <- c(0, 1, 6, 7, 8, 11) + 0.5
 
-png('smd_plot_v3.png', height = 11, width = 11.5, units = 'in', res = 300)
+# png('smd_plot_v3.png', height = 11, width = 11.5, units = 'in', res = 300)
+cairo_pdf('Fig3.pdf', height = 12, width = 12, family = 'Verdana')
 
-par(mar = c(11, 13, 4, 11), xpd = NA)
+par(mar = c(11, 15, 4, 11), xpd = NA)
 
 cols <- c('black', brewer.pal(5, 'Paired'))
 plot(1, type = 'n', xlim= c(-1, 1.5), ylim = c(0, 13), axes = F, xlab = NA, ylab = NA)
@@ -663,10 +688,11 @@ segments(0, 0.5, y1 = 12.5)
 points(x$q, ys, pch = 19, col = cols, cex = c(1.15, 0.7, 0.7, 0.7, 0.7, 0.7))
 arrows(x$lower, ys, x1 = x$upper, length = 0.04, code = 3, angle = 90, col = cols)
 axis(1, at = seq(-1, 0.5, 0.5), pos = 0.5)
-arrows(-0.1, -1, x1 = -0.5, length = 0.13)
-arrows(0.1, -1, x1 = 0.5, length = 0.13)
-text(-0.1, -1.8, 'Higher score in\nWhite British\nadolescents', adj = 1)
-text(0.1, -1.8, 'Higher score in\nminority ethnic\nadolescents', adj = 0)
+
+arrows(-0.1, -0.8, x1 = -0.5, length = 0.13)
+arrows(0.1, -0.8, x1 = 0.5, length = 0.13)
+text(-0.1, -1.5, 'Higher score in\nwhite British\nadolescents', adj = 1)
+text(0.1, -1.5, 'Higher score in\nminority ethnic\nadolescents', adj = 0)
 
 rect(-0.5 + 1+gap, main_measures, 0.5 + 1+gap, main_measures + 1, col = 'grey96', border = NA)
 rect(-0.5 + 1+gap, 0.5, 0.5 + 1+gap, 12.5)
@@ -675,21 +701,21 @@ segments(0 + 1+gap, 0.5, y1 = 12.5)
 points(x2$q + 1+gap, ymids, pch = 19 , cex = 1.15)
 arrows(x2$lower +1+gap, ymids, x1 = x2$upper +1+gap, length = 0.04, code = 3, angle = 90)
 axis(1, at = seq(-0.5 +1+gap, 0.5 +1+gap, 0.5), labels = c(-0.5, 0, 0.5), pos = 0.5)
-arrows(-0.1 +1+gap, -1, x1 = -0.5 +1+gap, length = 0.15)
-arrows(0.1 +1+gap, -1, x1 = 0.5 +1+gap, length = 0.15)
 
-text(-0.1 +1+gap, -1.8, 'Higher score in\nineligible\nadolescents', adj = 1)
-text(0.1 +1+gap, -1.8, 'Higher score in\neligible\nadolescents', adj = 0)
+arrows(-0.1 +1+gap, -0.8, x1 = -0.5 +1+gap, length = 0.15)
+arrows(0.1 +1+gap, -0.8, x1 = 0.5 +1+gap, length = 0.15)
+text(-0.05 +1+gap, -1.5, 'Higher score in\nineligible\nadolescents', adj = 1)
+text(0.05 +1+gap, -1.5, 'Higher score in\neligible\nadolescents', adj = 0)
 
 text(-1.1, ymids, titles, adj = 1)
-text(0, 13.5, 'Associations with\nethnicity\n(ref = White British: see colour key)')
-text(0 +1+gap, 13.5, 'Associations with\nFree School Meal\neligibility')
-text(0.5 +gap/2, -3, 'Standardised mean difference')
+text(-0.25, 13.5, 'Associations with\nethnicity\n(ref = white British: see colour key)')
+text(0 +1+gap, 13.5, 'Associations with\nFree School Meal eligibility\n(ref = ineligible)')
+text(0.5 +gap/2, -2.5, "Standardised mean difference (Cohen's d)")
 
 ysl <- seq(12, 7.5, length.out = 6)
 points(rep(0.7 +1+gap, 6), ysl, col = cols, pch = 19, cex = c(1.15, 0.7, 0.7, 0.7, 0.7, 0.7))
 arrows(0.6 +1+gap, ysl, x1 = 0.8 +1+gap, col = cols, angle = 90, code = 3, length = 0.05)
-text(0.82 +1+gap, ysl, c('British\nPakistani', 'Other\nAsian', 'Mixed\nethnicities', 'Other White', 'Black', 'Other\nethnicities'), adj = 0)
+text(0.82 +1+gap, ysl, c('Pakistani', 'Other\nAsian', 'Mixed\nethnicities', 'Other white', 'Black', 'Other\nethnicities'), adj = 0)
 text(0.6 +1+gap, 13.5, 'Key for\nethnicity\nresults', adj = 0)
 
 dev.off()
@@ -709,6 +735,7 @@ ethtab$smd <- gsub(',', ', ', ethtab$smd)
 ethtab$ethnicity <- factor(ethtab$ethnicity, c('Pakistani', 'Asian', 'Mixed', 'White', 'Black', 'Other'))
 setDT(ethtab)
 ethtab <- dcast(ethtab, measure ~ ethnicity, value.var = 'smd')
+ethtab <- ethtab[match(measures, measure)]
 
 fsmtab <- do.call(rbind, r_fsm)
 fsmtab <- format(round(fsmtab, digits = 2), nsmall = 2, digits = 2)
@@ -717,6 +744,9 @@ fsmtab$smd <- paste0(fsmtab$q, '(', fsmtab$lower, ',', fsmtab$upper, ')')
 fsmtab$smd <- gsub(' ', '', fsmtab$smd)
 fsmtab$smd <- gsub('\\(', ' (', fsmtab$smd)
 fsmtab$smd <- gsub(',', ', ', fsmtab$smd)
+setDT(fsmtab)
+fsmtab <- fsmtab[match(measures, measure)]
+
 
 tab <- cbind(ethtab, fsm = fsmtab$smd)
 fwrite(tab, 'smd_table.csv')
@@ -748,7 +778,7 @@ colnames(x_fsmcc) <- c('q', 'lower', 'upper')
 off <- 0.05
 gap <- 0.15
 
-png('mi_vs_cc.png', height = 12, width = 12, units = 'in', res = 300)
+emf('mi_vs_cc.emf', height = 12, width = 12, units = 'in')
 
 par(xpd = NA, mar = c(7, 12, 0, 0))
 
@@ -797,4 +827,80 @@ arrows(0.6 +1+gap, ysl, x1 = 0.8 +1+gap, col = cols, angle = 90, code = 3, lengt
 text(0.82 +1+gap, ysl, c('British\nPakistani', 'Other\nAsian', 'Mixed\nethnicities', 'Other White', 'Black', 'Other\nethnicities'), adj = 0)
 text(0.6 +1+gap, 13, 'Key for\nethnicity\nresults', adj = 0)
 
+dev.off()
+
+# ==========================================================
+# interaction sex and fsm / ethnicity - exploratory analysis
+# ----------------------------------------------------------
+
+intf <- lapply(measures, function (x) {
+  f <- paste0(x, '~ sex*fsm + age + season')
+  f2 <- paste0(x, '~ sex + fsm + age + season')
+  m <- lm(f, data = d)
+  m2 <- lm(f2, data = d)
+  interaction_pvala <- tail(summary(m)$coef[, 4], 1)
+  interaction_pvalb <- anova(m, m2, test = 'LRT')$`Pr(>Chi)`[2]
+  nd <- expand.grid(fsm = 0:1, sex = c('Female', 'Male'), season = 'autumn', age = 13.9)
+  list(res = cbind(nd, predict(m, newdata = nd, interval = 'conf')),
+       pvals = c(interaction_pvala, interaction_pvalb))
+})
+names(intf) <- measures
+
+pf <- function (pd, xls = c('No FSM', 'FSM'), lp = -0.1, lp2 = -0.2, cols = brewer.pal(3, 'Pastel1')[1:2], TITLE = 'Title', ...) {
+  x <- pd[[1]]
+  xl <- c(0, 1, 2.5, 3.5)
+  ymax = max(x$upr) * 1.4
+  plot(1, type = 'n', xlim = c(-0.2, 4.7), ylim = c(0, ymax), xlab = NA, ylab = NA, axes = F)
+  rect(xl, 0, xl + 1, x$fit, col = cols)
+  arrows(xl + 0.5, x$lwr, y1 = x$upr, code = 3, angle = 90, length = 0.05)
+  p <- pd[[2]][1]
+  p <- if (p < 0.001) '<0.001' else format(round(p, 3), digits = 3, nsmall = 3)
+  TITLE <- paste0(TITLE, '\n', 'p=', p)
+  text(2.25, ymax * 0.85, TITLE)
+  axis(2, at = yax(ymax), pos = -0.2, las = 2)
+  rect(-0.2, 0, 4.7, ymax)
+  text(c(1, 3.5), ymax * lp2, c('Female', 'Male'))
+  text(c(0.5, 1.5, 3, 4), ymax * lp, rep(xls, 2), ...)
+}
+
+emf('sex_fsm_interactions_12.emf', height = 10, width = 7.5, units = 'in')
+par(mfrow = c(4, 3), mar = c(3, 3, 1, 0), xpd = NA, oma = c(3, 2, 1, 1))
+mapply(pf, pd = intf, TITLE = titles)
+dev.off()
+
+inte <- lapply(measures, function (x) {
+  f <- paste0(x, '~ sex*eth7_2 + age + season')
+  f2 <- paste0(x, '~ sex + eth7_2 + age + season')
+  m <- lm(f, data = d[eth7_2 %in% c('White British', 'Pakistani')])
+  m2 <- lm(f2, data = d[eth7_2 %in% c('White British', 'Pakistani')])
+  interaction_pvala <- tail(summary(m)$coef[, 4], 1)
+  interaction_pvalb <- anova(m, m2, test = 'LRT')$`Pr(>Chi)`[2]
+  nd <- expand.grid(eth7_2 = c('White British', 'Pakistani'), sex = c('Female', 'Male'), season = 'autumn', age = 13.9)
+  list(res = cbind(nd, predict(m, newdata = nd, interval = 'conf')),
+       pvals = c(interaction_pvala, interaction_pvalb))
+})
+names(inte) <- measures
+
+emf('sex_eth_interactions_12.emf', height = 10, width = 7.5, units = 'in')
+par(mfrow = c(4, 3), mar = c(3, 3, 1, 0), xpd = NA, oma = c(3, 2, 1, 1))
+mapply(pf, pd = inte, TITLE = titles, xls = list(c('White\nBritish', 'Pakistani')))
+dev.off()
+
+# post-hoc t-tests
+
+posthoc <- lapply(measures, function (x) {
+  t.test(d[sex == 'Male' & eth7_2 == 'White British' & !is.na(get(x)), get(x)], 
+         d[sex == 'Male' & eth7_2 == 'Pakistani' & !is.na(get(x)), get(x)])
+})
+names(posthoc) <- measures
+
+# selected measures
+
+measure_indices <- c(2, 7, 11)
+
+#png('sex_eth_interactions_3.png', height = 3.3, width = 7.5, units = 'in', res = 300)
+cairo_pdf('Fig4.pdf', height = 3.3, width = 7.5, family = 'Verdana')
+par(mfrow = c(1, 3), mar = c(3, 3, 1, 0), xpd = NA, oma = c(3, 3, 1, 1))
+mapply(pf, pd = inte[measure_indices], TITLE = titles[measure_indices], xls = list(c('White\nBritish', 'Pakistani')), adj = list(c(1, 0.5)), srt = 90, lp = -0.02, lp2 = -0.32)
+title(ylab = 'Score', outer = T, line = 0.2)
 dev.off()
